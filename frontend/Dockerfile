@@ -2,12 +2,11 @@
 FROM node:18-alpine as build-stage
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
-# 修复权限问题：确保 node_modules/.bin 下的可执行文件有执行权限
-RUN chmod +x node_modules/.bin/*
+# 使用 --unsafe-perm 确保 npm 以 root 权限执行脚本，避免权限降级
+RUN npm install --unsafe-perm
 COPY . .
-# 直接调用 vite 进行构建
-RUN ./node_modules/.bin/vite build
+# 恢复使用 npm run build，因为 --unsafe-perm 应该解决了权限问题
+RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine as production-stage
