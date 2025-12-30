@@ -2,10 +2,8 @@
 FROM node:18-alpine as build-stage
 WORKDIR /app
 COPY package*.json ./
-# 使用 --unsafe-perm 确保 npm 以 root 权限执行脚本，避免权限降级
-RUN npm install --unsafe-perm
+RUN npm install
 COPY . .
-# 恢复使用 npm run build，因为 --unsafe-perm 应该解决了权限问题
 RUN npm run build
 
 # Production stage
