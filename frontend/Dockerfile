@@ -3,11 +3,8 @@ FROM node:18-alpine as build-stage
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
-# 修复权限问题：确保 node_modules/.bin 下的可执行文件有执行权限
-RUN chmod +x node_modules/.bin/*
 COPY . .
-# 直接调用 vite 进行构建
-RUN ./node_modules/.bin/vite build
+RUN npm run build
 
 # Production stage
 FROM nginx:stable-alpine as production-stage
