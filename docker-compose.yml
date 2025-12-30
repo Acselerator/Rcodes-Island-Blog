@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # 前端服务
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    volumes:
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - blog_net
+
+  # 后端服务
+  backend:
+    build: ./backend
+    # 生产环境通常不需要暴露后端端口，因为流量都走 Nginx
+    # 如果你需要远程调试 API，可以取消注释，但记得在安全组限制 IP
+    # ports:
+    #   - "8000:8000"
+    environment:
+      # 使用环境变量
+      - DATABASE_URL=${DATABASE_URL}
+    depends_on:
+      - db
+    restart: always
+    networks:
+      - blog_net
+
+  # 数据库服务
+  db:
+    image: mysql:8.0
+    container_name: blog_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    # 生产环境强烈建议不要暴露数据库端口到公网！
+    # 仅在 Docker 网络内部访问
+    # ports:
+    #   - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - blog_net
+
+volumes:
+  db_data:
+
+networks:
+  blog_net:
+    driver: bridge
