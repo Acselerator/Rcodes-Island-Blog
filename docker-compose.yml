@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 前端服务
   frontend:
-    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-frontend:latest
+    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-frontend:v1.1
     ports:
       - "80:80"
     volumes:
@@ -16,23 +16,36 @@ services:
 
   # 后端服务
   backend:
-    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-backend:latest
-    # 生产环境通常不需要暴露后端端口，因为流量都走 Nginx
-    # 如果你需要远程调试 API，可以取消注释，但记得在安全组限制 IP
-    ports:
-      - "8000:8000"
+    # 你的镜像地址保持不变
+    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-backend:v1.1
+    restart: always
+    # 【关键修改1】给予容器最高权限，绕过部分安全限制
+    privileged: true
+    # 【关键修改2】解除容器内的进程/线程数量限制 (PIDs)
+    pids_limit: -1
+    # 【关键修改3】强制修改 Linux 内核限制 (nproc)
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 65535
+        hard: 65535
     environment:
-      # 使用环境变量
       - DATABASE_URL=${DATABASE_URL}
+      # 【关键修改4】从代码层面限制 Python 不要疯狂开线程
+      # 限制 AnyIO (FastAPI 依赖库) 的最大线程数，默认为 40，这里限制为 10
+      - ANYIO_WORKER_THREADS=10
+      # 限制数据库连接池
+      - SQLALCHEMY_POOL_SIZE=5
+      - SQLALCHEMY_MAX_OVERFLOW=5
     depends_on:
       - db
-    restart: always
     networks:
       - blog_net
 
   # 数据库服务
   db:
-    image: mysql:8.0
+    # 降级到 5.7，只有 8.0 一半的内存占用
+    image: mysql:5.7
     container_name: blog_db
     restart: always
     environment:
@@ -40,10 +53,6 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    # 生产环境强烈建议不要暴露数据库端口到公网！
-    # 仅在 Docker 网络内部访问
-    # ports:
-    #   - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
