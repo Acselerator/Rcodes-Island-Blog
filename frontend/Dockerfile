@@ -6,7 +6,8 @@ RUN npm install
 # 修复权限问题：确保 node_modules/.bin 下的可执行文件有执行权限
 RUN chmod +x node_modules/.bin/*
 COPY . .
-RUN npm run build
+# 直接调用 vite 进行构建
+RUN ./node_modules/.bin/vite build
 
 # Production stage
 FROM nginx:stable-alpine as production-stage
