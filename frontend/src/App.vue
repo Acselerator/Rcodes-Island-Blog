@@ -69,6 +69,30 @@
           </div>
           <p>{{ post.content }}</p>
           <small>ID: {{ post.id }} | Author ID: {{ post.owner_id }}</small>
+
+          <!-- Comments Section -->
+          <div class="post-footer">
+            <button @click="toggleComments(post)" class="btn-small btn-secondary btn-xs">
+              {{ post.showComments ? 'Hide Comments' : 'Show Comments' }}
+            </button>
+          </div>
+
+          <div v-if="post.showComments" class="comments-section">
+            <h4>Comments</h4>
+            <div v-if="post.loadingComments">Loading comments...</div>
+            <div v-else-if="!post.comments || post.comments.length === 0">No comments yet.</div>
+            <div v-else class="comment-list">
+              <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
+                <p><strong>{{ comment.owner.username }}:</strong> {{ comment.content }}</p>
+                <button v-if="user && comment.owner_id === user.id" @click="deleteComment(post, comment.id)" class="btn-small btn-delete btn-xs">Delete</button>
+              </div>
+            </div>
+            
+            <div v-if="user" class="add-comment">
+              <input v-model="post.newComment" placeholder="Write a comment..." @keyup.enter="addComment(post)" />
+              <button @click="addComment(post)" :disabled="post.submittingComment" class="btn-small">Post</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -212,6 +236,47 @@ const deletePost = async (id) => {
   }
 }
 
+// --- 评论逻辑 ---
+const toggleComments = async (post) => {
+  post.showComments = !post.showComments
+  if (post.showComments && !post.comments) {
+    post.loadingComments = true
+    try {
+      const response = await axios.get(`/api/posts/${post.id}/comments/`)
+      post.comments = response.data
+    } catch (error) {
+      console.error('Error fetching comments', error)
+    } finally {
+      post.loadingComments = false
+    }
+  }
+}
+
+const addComment = async (post) => {
+  if (!post.newComment) return
+  post.submittingComment = true
+  try {
+    const response = await axios.post(`/api/posts/${post.id}/comments/`, { content: post.newComment })
+    if (!post.comments) post.comments = []
+    post.comments.push(response.data)
+    post.newComment = ''
+  } catch (error) {
+    alert('Error adding comment: ' + (error.response?.data?.detail || error.message))
+  } finally {
+    post.submittingComment = false
+  }
+}
+
+const deleteComment = async (post, commentId) => {
+  if (!confirm('Delete comment?')) return
+  try {
+    await axios.delete(`/api/comments/${commentId}`)
+    post.comments = post.comments.filter(c => c.id !== commentId)
+  } catch (error) {
+    alert('Error deleting comment: ' + (error.response?.data?.detail || error.message))
+  }
+}
+
 onMounted(async () => {
   if (token.value) {
     await fetchCurrentUser()
@@ -221,6 +286,12 @@ onMounted(async () => {
 </script>
 
 <style>
+.post-footer { margin-top: 10px; }
+.comments-section { margin-top: 10px; padding: 10px; background-color: #f9f9f9; border-radius: 4px; }
+.comment-item { border-bottom: 1px solid #eee; padding: 5px 0; display: flex; justify-content: space-between; align-items: center; }
+.add-comment { margin-top: 10px; display: flex; gap: 5px; }
+.btn-xs { padding: 2px 5px; font-size: 0.8em; }
+
 .container { max-width: 800px; margin: 0 auto; padding: 20px; font-family: sans-serif; }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .user-info { display: flex; gap: 10px; align-items: center; }

@@ -53,6 +53,19 @@ class PostResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class CommentCreate(BaseModel):
+    content: str
+
+class CommentResponse(BaseModel):
+    id: int
+    content: str
+    owner_id: int
+    post_id: int
+    owner: UserResponse
+
+    class Config:
+        orm_mode = True
+
 # --- 辅助函数 ---
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -175,3 +188,35 @@ def delete_post(post_id: int, db: Session = Depends(database.get_db), current_us
     db.delete(db_post)
     db.commit()
     return {"message": "Post deleted successfully"}
+
+# 新增评论 (需要登录)
+@app.post("/posts/{post_id}/comments/", response_model=CommentResponse)
+def create_comment(post_id: int, comment: CommentCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    db_post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    if db_post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    db_comment = models.Comment(content=comment.content, post_id=post_id, owner_id=current_user.id)
+    db.add(db_comment)
+    db.commit()
+    db.refresh(db_comment)
+    return db_comment
+
+# 获取评论列表 (公开)
+@app.get("/posts/{post_id}/comments/", response_model=List[CommentResponse])
+def read_comments(post_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
+    comments = db.query(models.Comment).filter(models.Comment.post_id == post_id).offset(skip).limit(limit).all()
+    return comments
+
+# 删除评论 (需要登录且是作者)
+@app.delete("/comments/{comment_id}")
+def delete_comment(comment_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    db_comment = db.query(models.Comment).filter(models.Comment.id == comment_id).first()
+    if db_comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if db_comment.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this comment")
+    
+    db.delete(db_comment)
+    db.commit()
+    return {"message": "Comment deleted successfully"}
