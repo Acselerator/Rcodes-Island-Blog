@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # 前端服务
   frontend:
-    build: ./frontend
+    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-frontend:latest
     ports:
       - "80:80"
     volumes:
@@ -16,11 +16,11 @@ services:
 
   # 后端服务
   backend:
-    build: ./backend
+    image: swr.cn-north-4.myhuaweicloud.com/ni_haochen/blog-backend:latest
     # 生产环境通常不需要暴露后端端口，因为流量都走 Nginx
     # 如果你需要远程调试 API，可以取消注释，但记得在安全组限制 IP
-    # ports:
-    #   - "8000:8000"
+    ports:
+      - "8000:8000"
     environment:
       # 使用环境变量
       - DATABASE_URL=${DATABASE_URL}
