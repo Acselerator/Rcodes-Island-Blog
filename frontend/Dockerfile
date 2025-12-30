@@ -3,6 +3,8 @@ FROM node:18-alpine as build-stage
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
+# 修复权限问题：确保 node_modules/.bin 下的可执行文件有执行权限
+RUN chmod +x node_modules/.bin/*
 COPY . .
 RUN npm run build
 
