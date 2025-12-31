@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -6,6 +7,9 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+import shutil
+import os
+import uuid
 
 from . import models, database
 
@@ -22,6 +26,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
+
+# Ensure uploads directory exists
+os.makedirs("uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # --- Pydantic 模型 ---
 class Token(BaseModel):
@@ -239,3 +247,17 @@ def delete_comment(comment_id: int, db: Session = Depends(database.get_db), curr
     db.delete(db_comment)
     db.commit()
     return {"message": "Comment deleted successfully"}
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)):
+    file_extension = os.path.splitext(file.filename)[1]
+    # Generate a unique filename
+    file_name = f"{uuid.uuid4()}{file_extension}"
+    file_path = f"uploads/{file_name}"
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Return the URL (relative to the server root)
+    return {"url": f"/uploads/{file_name}"}
+

@@ -32,7 +32,7 @@
                     <span class="font-mono">R</span>
                 </div>
                 <div class="leading-none">
-                    <h1 class="text-xl font-black tracking-tighter uppercase group-hover:text-zinc-600 transition-colors">Rhodes Island</h1>
+                    <h1 class="text-xl font-black tracking-tighter uppercase group-hover:text-zinc-600 transition-colors">Rcodes Island</h1>
                     <div class="flex items-center gap-2">
                         <span class="text-[10px] font-bold tracking-[0.3em] text-zinc-500">TERMINAL SYSTEM</span>
                         <span v-if="user" class="text-[10px] bg-yellow-400 text-black px-1 font-bold">ADMIN</span>
@@ -179,7 +179,7 @@
                         <div class="h-1 w-12 bg-yellow-400 mb-6 mt-4"></div>
 
                         <!-- 截断显示摘要 -->
-                        <p class="text-zinc-600 leading-relaxed mb-6 font-medium line-clamp-3">{{ post.content }}</p>
+                        <p class="text-zinc-600 leading-relaxed mb-6 font-medium line-clamp-3 whitespace-pre-line">{{ stripHtml(post.content) }}</p>
 
                         <div class="flex justify-between items-center">
                             <div class="flex gap-2">
@@ -254,7 +254,7 @@
 
                     <!-- 正文内容 -->
                     <div class="prose prose-zinc max-w-none">
-                        <div class="font-serif text-lg leading-loose text-zinc-800 whitespace-pre-wrap">{{ activePost.content }}</div>
+                        <div class="font-serif text-lg leading-loose text-zinc-800" v-html="activePost.content"></div>
                     </div>
                     
                     <!-- 评论区 -->
@@ -350,9 +350,17 @@
                     <div class="space-y-2 mb-8">
                         <label class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex justify-between">
                             <span>Record Content</span>
-                            <span>LINES: {{ newPost.content.split('\n').length }}</span>
                         </label>
-                        <textarea v-model="newPost.content" class="w-full h-96 bg-zinc-800 border-2 border-zinc-700 p-4 font-mono text-sm leading-relaxed text-zinc-300 focus:border-yellow-400 outline-none resize-none" placeholder="Begin typing entry data..."></textarea>
+                        <div class="bg-white text-black border-2 border-zinc-700">
+                            <QuillEditor 
+                                ref="quillEditorRef"
+                                v-model:content="newPost.content" 
+                                contentType="html" 
+                                :options="quillOptions" 
+                                theme="snow"
+                                class="h-96" 
+                            />
+                        </div>
                     </div>
 
                     <!-- 底部操作栏 -->
@@ -373,7 +381,7 @@
         <div class="absolute top-0 left-0 w-full h-2 bg-[repeating-linear-gradient(45deg,#eab308,#eab308_20px,#000_20px,#000_40px)]"></div>
         <div class="w-full mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
             <div class="col-span-2">
-                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-4">Rhodes Island</h2>
+                <h2 class="text-2xl font-black text-white uppercase tracking-tighter mb-4">Rcodes Island</h2>
                 <p class="text-xs leading-relaxed max-w-md font-mono text-zinc-500">
                     CONFIDENTIALITY NOTICE: The information contained in this terminal system is intended only for the use of the individual or entity to whom it is assigned.
                 </p>
@@ -426,12 +434,44 @@
             <div class="absolute bottom-0 right-0 w-4 h-4 bg-yellow-400"></div>
         </div>
     </div>
+
+    <!-- Music Player Ball -->
+    <div class="fixed bottom-8 right-8 z-50">
+        <audio ref="audioPlayer" loop muted>
+            <source src="/bgm.mp3" type="audio/mpeg">
+        </audio>
+        <div class="w-12 h-12 rounded-full border-2 border-zinc-900 shadow-[4px_4px_0_0_#000] transition-transform duration-300 hover:scale-110 bg-white overflow-hidden">
+            <button 
+                @click="toggleMusic" 
+                :class="['w-full h-full flex items-center justify-center', isPlaying ? 'bg-yellow-400 animate-spin-slow' : 'bg-white']"
+                title="Music Player"
+            >
+                <i data-lucide="music" :class="['w-5 h-5', isPlaying ? 'text-black' : 'text-zinc-400']"></i>
+            </button>
+        </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, nextTick, watch, onUpdated } from 'vue'
 import axios from 'axios'
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
+
+// 辅助函数：去除 HTML 标签
+const stripHtml = (html) => {
+  // 预处理：将块级元素结束标签替换为换行符，保留结构
+  let processed = html
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/li>/gi, '\n');
+    
+  const tmp = document.createElement("DIV")
+  tmp.innerHTML = processed
+  return (tmp.textContent || tmp.innerText || "").trim()
+}
 
 // 状态
 const posts = ref([])
@@ -447,6 +487,68 @@ const currentView = ref('list') // 'list', 'detail', 'editor'
 const activePost = ref(null)
 const isEditing = ref(false)
 const editingId = ref(null)
+
+// 音乐播放器状态
+const isPlaying = ref(false)
+const audioPlayer = ref(null)
+
+// Quill Editor 配置
+const quillEditorRef = ref(null)
+
+const imageHandler = () => {
+  const input = document.createElement('input')
+  input.setAttribute('type', 'file')
+  input.setAttribute('accept', 'image/*')
+  input.click()
+  input.onchange = async () => {
+    const file = input.files[0]
+    if (/^image\//.test(file.type)) {
+      const formData = new FormData()
+      formData.append('file', file)
+      try {
+        const res = await axios.post('/api/upload', formData, {
+           headers: { Authorization: `Bearer ${token.value}` }
+        })
+        const url = res.data.url
+        const quill = quillEditorRef.value.getQuill()
+        const range = quill.getSelection()
+        quill.insertEmbed(range.index, 'image', url)
+      } catch (e) {
+        console.error('Image upload failed', e)
+        alert('Image upload failed')
+      }
+    } else {
+      console.warn('You could only upload images.')
+    }
+  }
+}
+
+const quillOptions = {
+  modules: {
+    toolbar: {
+      container: [
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote', 'code-block'],
+        [{ 'header': 1 }, { 'header': 2 }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'script': 'sub'}, { 'script': 'super' }],
+        [{ 'indent': '-1'}, { 'indent': '+1' }],
+        [{ 'direction': 'rtl' }],
+        [{ 'size': ['small', false, 'large', 'huge'] }],
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+        [{ 'color': [] }, { 'background': [] }],
+        [{ 'font': [] }],
+        [{ 'align': [] }],
+        ['clean'],
+        ['link', 'image', 'video']
+      ],
+      handlers: {
+        image: imageHandler
+      }
+    }
+  },
+  theme: 'snow'
+}
 
 // 表单数据
 const authForm = reactive({ username: '', password: '' })
@@ -619,6 +721,15 @@ const deleteComment = async (post, commentId) => {
   }
 }
 
+const toggleMusic = () => {
+  if (isPlaying.value) {
+    audioPlayer.value.pause()
+  } else {
+    audioPlayer.value.play().catch(e => console.log("Audio play failed:", e))
+  }
+  isPlaying.value = !isPlaying.value
+}
+
 onMounted(async () => {
   // 动态加载 Lucide 图标库
   const script = document.createElement('script')
@@ -637,6 +748,40 @@ onMounted(async () => {
     await fetchCurrentUser()
   }
   await fetchPosts()
+
+  // 尝试自动播放背景音乐
+  if (audioPlayer.value) {
+    // 1. 先尝试静音播放（成功率极高）
+    audioPlayer.value.muted = true
+    audioPlayer.value.play().then(() => {
+      isPlaying.value = true
+      console.log("Muted autoplay started")
+    }).catch(e => {
+      console.log("Muted autoplay failed:", e)
+    })
+
+    // 2. 监听用户首次交互，恢复声音
+    const enableSound = () => {
+      if (audioPlayer.value) {
+        audioPlayer.value.muted = false
+        audioPlayer.value.volume = 0.3
+        // 如果之前静音播放失败了，这里再次尝试播放
+        if (audioPlayer.value.paused) {
+          audioPlayer.value.play().then(() => {
+            isPlaying.value = true
+          }).catch(e => console.log("Play on interaction failed:", e))
+        }
+      }
+      // 移除监听器
+      document.removeEventListener('click', enableSound)
+      document.removeEventListener('touchstart', enableSound)
+      document.removeEventListener('keydown', enableSound)
+    }
+
+    document.addEventListener('click', enableSound)
+    document.addEventListener('touchstart', enableSound)
+    document.addEventListener('keydown', enableSound)
+  }
 })
 
 const refreshIcons = () => {
