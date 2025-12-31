@@ -1,4 +1,4 @@
-# RCODES ISLAND (码德岛) - 个人博客系统
+# Rcodes Island (码德岛) - 个人博客系统
 
 ![Project Status](https://img.shields.io/badge/status-active-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -6,7 +6,7 @@
 ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688.svg)
 ![Docker](https://img.shields.io/badge/deploy-Docker-2496ED.svg)
 
-**RCODES ISLAND (码德岛)** 是一个现代化的全栈个人博客系统，其名称与设计灵感来源于游戏《明日方舟》中的组织“罗德岛 (Rhodes Island)”。
+**Rcodes Island (码德岛)** 是一个现代化的全栈个人博客系统，其名称与设计灵感来源于游戏《明日方舟》中的组织“罗德岛 (Rhodes Island)”。
 
 本项目采用了独特的**终端风格 UI**，结合了 Vue 3 的响应式体验与 FastAPI 的高性能后端，并完全容器化以便于部署。
 
