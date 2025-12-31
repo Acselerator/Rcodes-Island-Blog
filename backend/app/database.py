@@ -5,8 +5,11 @@ from sqlalchemy.orm import sessionmaker
 
 # 从环境变量获取数据库 URL，如果没有则使用默认值（本地开发用）
 # 注意：Docker 内部服务名是 'db'，端口是 3306
-DEFAULT_DB_URL = "mysql+pymysql://bloguser:blogpassword@localhost:3307/blog_db"
+DEFAULT_DB_URL = "mysql+pymysql://bloguser:blogpassword@localhost:3307/blog_db?charset=utf8mb4"
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DB_URL)
+
+if "charset=utf8mb4" not in SQLALCHEMY_DATABASE_URL:
+    SQLALCHEMY_DATABASE_URL += "?charset=utf8mb4"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,

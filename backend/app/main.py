@@ -44,11 +44,18 @@ class UserResponse(BaseModel):
 class PostCreate(BaseModel):
     title: str
     content: str
+    category: Optional[str] = "LOG"
+    tags: Optional[str] = ""
 
 class PostResponse(BaseModel):
     id: int
     title: str
     content: str
+    category: Optional[str]
+    tags: Optional[str]
+    created_at: Optional[str]
+    year: Optional[str]
+    date: Optional[str]
     owner_id: int
     class Config:
         orm_mode = True
@@ -149,7 +156,17 @@ def read_users_me(current_user: models.User = Depends(get_current_user)):
 # 新增文章 (需要登录)
 @app.post("/posts/", response_model=PostResponse)
 def create_post(post: PostCreate, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
-    db_post = models.Post(title=post.title, content=post.content, owner_id=current_user.id)
+    now = datetime.now()
+    db_post = models.Post(
+        title=post.title, 
+        content=post.content,
+        category=post.category,
+        tags=post.tags,
+        created_at=now.isoformat(),
+        year=str(now.year),
+        date=f"{now.month}.{now.day}",
+        owner_id=current_user.id
+    )
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
@@ -172,6 +189,8 @@ def update_post(post_id: int, post: PostCreate, db: Session = Depends(database.g
     
     db_post.title = post.title
     db_post.content = post.content
+    db_post.category = post.category
+    db_post.tags = post.tags
     db.commit()
     db.refresh(db_post)
     return db_post

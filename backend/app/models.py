@@ -17,7 +17,12 @@ class Post(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(100), index=True)
+    category = Column(String(50))  # 新增：分类
+    tags = Column(String(200))     # 新增：标签（逗号分隔字符串）
     content = Column(Text)
+    created_at = Column(String(50)) # 新增：创建时间字符串
+    year = Column(String(10))       # 新增：年份
+    date = Column(String(20))       # 新增：日期 (MM.DD)
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="posts")
