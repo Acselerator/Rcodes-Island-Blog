@@ -21,6 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 # --- 安全工具 ---
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 # --- 数据库初始化 ---
 models.Base.metadata.create_all(bind=database.engine)
@@ -64,9 +65,17 @@ class PostResponse(BaseModel):
     created_at: Optional[str]
     year: Optional[str]
     date: Optional[str]
+    views: int = 0
+    likes: int = 0
+    is_liked: bool = False
     owner_id: int
+    owner: UserResponse
     class Config:
         orm_mode = True
+
+class PostListResponse(BaseModel):
+    items: List[PostResponse]
+    total: int
 
 class CommentCreate(BaseModel):
     content: str
@@ -115,6 +124,20 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     user = db.query(models.User).filter(models.User.username == token_data.username).first()
     if user is None:
         raise credentials_exception
+    return user
+
+async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme_optional), db: Session = Depends(database.get_db)):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        token_data = TokenData(username=username)
+    except JWTError:
+        return None
+    user = db.query(models.User).filter(models.User.username == token_data.username).first()
     return user
 
 # --- 路由 ---
@@ -170,21 +193,58 @@ def create_post(post: PostCreate, db: Session = Depends(database.get_db), curren
         content=post.content,
         category=post.category,
         tags=post.tags,
-        created_at=now.isoformat(),
+        created_at=now.strftime("%Y-%m-%d %H:%M:%S"), # 更精确的时间格式
         year=str(now.year),
         date=f"{now.month}.{now.day}",
-        owner_id=current_user.id
+        owner_id=current_user.id,
+        views=0,
+        likes=0
     )
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
     return db_post
 
+from sqlalchemy import or_, desc, asc
+
 # 获取文章列表 (公开)
-@app.get("/posts/", response_model=List[PostResponse])
-def read_posts(skip: int = 0, limit: int = 100, db: Session = Depends(database.get_db)):
-    posts = db.query(models.Post).offset(skip).limit(limit).all()
-    return posts
+@app.get("/posts/", response_model=PostListResponse)
+def read_posts(
+    skip: int = 0, 
+    limit: int = 10, 
+    q: Optional[str] = None,
+    sort_by: Optional[str] = "date", # date, views, likes
+    order: Optional[str] = "desc",
+    db: Session = Depends(database.get_db)
+):
+    query = db.query(models.Post)
+    
+    if q:
+        search = f"%{q}%"
+        query = query.filter(
+            or_(
+                models.Post.title.like(search),
+                models.Post.content.like(search),
+                models.Post.tags.like(search),
+                models.Post.category.like(search)
+            )
+        )
+    
+    if sort_by == "views":
+        sort_attr = models.Post.views
+    elif sort_by == "likes":
+        sort_attr = models.Post.likes
+    else: # date
+        sort_attr = models.Post.id
+        
+    if order == "asc":
+        query = query.order_by(asc(sort_attr))
+    else:
+        query = query.order_by(desc(sort_attr))
+        
+    total = query.count()
+    posts = query.offset(skip).limit(limit).all()
+    return {"items": posts, "total": total}
 
 # 更新文章 (需要登录且是作者)
 @app.put("/posts/{post_id}", response_model=PostResponse)
@@ -215,6 +275,51 @@ def delete_post(post_id: int, db: Session = Depends(database.get_db), current_us
     db.delete(db_post)
     db.commit()
     return {"message": "Post deleted successfully"}
+
+# 获取单篇文章详情 (公开，增加浏览量)
+@app.get("/posts/{post_id}", response_model=PostResponse)
+def read_post(post_id: int, db: Session = Depends(database.get_db), current_user: Optional[models.User] = Depends(get_current_user_optional)):
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # 增加浏览量
+    post.views += 1
+    db.commit()
+    db.refresh(post)
+
+    # Check if liked by current user
+    post.is_liked = False
+    if current_user:
+        if db.query(models.PostLike).filter(models.PostLike.post_id == post_id, models.PostLike.user_id == current_user.id).first():
+            post.is_liked = True
+
+    return post
+
+# 点赞/取消点赞文章 (需要登录)
+@app.post("/posts/{post_id}/like")
+def like_post(post_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(get_current_user)):
+    post = db.query(models.Post).filter(models.Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+    
+    # Check if already liked
+    existing_like = db.query(models.PostLike).filter(models.PostLike.post_id == post_id, models.PostLike.user_id == current_user.id).first()
+    
+    if existing_like:
+        # Unlike
+        db.delete(existing_like)
+        post.likes = max(0, post.likes - 1)
+        is_liked = False
+    else:
+        # Like
+        new_like = models.PostLike(post_id=post_id, user_id=current_user.id)
+        db.add(new_like)
+        post.likes += 1
+        is_liked = True
+
+    db.commit()
+    return {"likes": post.likes, "is_liked": is_liked}
 
 # 新增评论 (需要登录)
 @app.post("/posts/{post_id}/comments/", response_model=CommentResponse)

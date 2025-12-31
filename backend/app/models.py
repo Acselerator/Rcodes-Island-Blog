@@ -23,6 +23,8 @@ class Post(Base):
     created_at = Column(String(50)) # 新增：创建时间字符串
     year = Column(String(10))       # 新增：年份
     date = Column(String(20))       # 新增：日期 (MM.DD)
+    views = Column(Integer, default=0) # 新增：浏览量
+    likes = Column(Integer, default=0) # 新增：点赞数
     owner_id = Column(Integer, ForeignKey("users.id"))
 
     owner = relationship("User", back_populates="posts")
@@ -38,3 +40,9 @@ class Comment(Base):
 
     owner = relationship("User", back_populates="comments")
     post = relationship("Post", back_populates="comments")
+
+class PostLike(Base):
+    __tablename__ = "post_likes"
+
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), primary_key=True)
