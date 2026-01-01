@@ -20,8 +20,8 @@
 - **交互体验**: 流畅的过渡动画、悬停特效以及内置的音乐播放器挂件。
 
 ### 📝 内容管理
-- **富文本编辑器**: 集成 Quill 编辑器，支持丰富的文本格式。
-- **图片上传**: 支持直接在编辑器中拖拽上传图片。
+- **Markdown 编辑器**: 支持实时预览的双栏 Markdown 编辑体验，所见即所得。
+- **图片上传**: 支持直接在编辑器中拖拽上传图片，自动生成 Markdown 链接。
 - **标签系统**: 通过标签组织内容，侧边栏提供“热门标签”云以便快速筛选。
 - **搜索与排序**: 实时搜索功能，支持按日期、浏览量或点赞数排序。
 
@@ -36,10 +36,10 @@
 ### 前端 (Frontend)
 - **框架**: Vue 3 (Composition API)
 - **构建工具**: Vite
-- **样式**: Tailwind CSS
+- **样式**: Tailwind CSS + @tailwindcss/typography
 - **图标库**: Lucide Icons
 - **HTTP 客户端**: Axios
-- **编辑器**: @vueup/vue-quill
+- **Markdown 解析**: marked
 
 ### 后端 (Backend)
 - **框架**: FastAPI (Python 3.9+)
