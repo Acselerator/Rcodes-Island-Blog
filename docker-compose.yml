@@ -39,6 +39,8 @@ services:
       # 限制数据库连接池
       - SQLALCHEMY_POOL_SIZE=5
       - SQLALCHEMY_MAX_OVERFLOW=5
+      # 设置时区为上海时间
+      - TZ=Asia/Shanghai
     volumes:
       - ./backend/uploads:/app/uploads
     depends_on:
@@ -58,6 +60,8 @@ services:
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      # 设置时区
+      TZ: Asia/Shanghai
     volumes:
       - db_data:/var/lib/mysql
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql

@@ -75,8 +75,8 @@
                 </div>
 
                 <!-- 正文内容 -->
-                <div class="prose prose-zinc max-w-none">
-                    <div class="font-serif text-lg leading-loose text-zinc-800" v-html="post.content"></div>
+                <div class="prose prose-zinc max-w-none prose-headings:font-black prose-h1:text-4xl prose-h2:text-3xl prose-h3:text-2xl prose-p:text-lg prose-p:leading-loose prose-a:text-blue-600 prose-img:rounded-lg prose-img:shadow-md">
+                    <div class="font-serif text-lg leading-loose text-zinc-800" v-html="compiledContent"></div>
                 </div>
                 
                 <!-- 评论区 -->
@@ -122,12 +122,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUpdated, nextTick } from 'vue'
+import { ref, onMounted, onUpdated, nextTick, computed } from 'vue'
+import { marked } from 'marked'
 
 const props = defineProps(['post', 'user'])
 const emit = defineEmits(['back', 'edit', 'delete', 'like', 'add-comment', 'delete-comment'])
 
 const newComment = ref('')
+
+const compiledContent = computed(() => {
+    return marked(props.post.content || '')
+})
 
 const handleAddComment = () => {
     if (!newComment.value) return

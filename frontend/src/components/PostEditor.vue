@@ -1,5 +1,5 @@
 <template>
-    <div class="max-w-5xl mx-auto animate-fade-in">
+    <div class="max-w-6xl mx-auto animate-fade-in">
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-2xl font-black uppercase flex items-center gap-3">
                 <i data-lucide="edit-3" class="w-6 h-6"></i>
@@ -46,20 +46,28 @@
                     </div>
                 </div>
 
-                <!-- 正文编辑 -->
+                <!-- 正文编辑 (Markdown Split View) -->
                 <div class="space-y-2 mb-8">
                     <label class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex justify-between">
-                        <span>Record Content</span>
+                        <span>Record Content (Markdown Supported)</span>
+                        <span class="text-xs text-zinc-500">Drag & Drop images supported</span>
                     </label>
-                    <div class="bg-white text-black border-2 border-zinc-700">
-                        <QuillEditor 
-                            ref="quillEditorRef"
-                            v-model:content="form.content" 
-                            contentType="html" 
-                            :options="quillOptions" 
-                            theme="snow"
-                            class="h-96" 
-                        />
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-[600px]">
+                        <!-- Editor -->
+                        <div class="relative h-full">
+                            <textarea 
+                                ref="editorRef"
+                                v-model="form.content" 
+                                @paste="handlePaste"
+                                @drop.prevent="handleDrop"
+                                class="w-full h-full bg-zinc-800 text-zinc-200 p-4 font-mono text-sm border-2 border-zinc-700 focus:border-yellow-400 outline-none resize-none"
+                                placeholder="Write your markdown here..."
+                            ></textarea>
+                        </div>
+                        <!-- Preview -->
+                        <div class="h-full bg-white text-black p-4 border-2 border-zinc-700 overflow-y-auto prose prose-sm max-w-none">
+                            <div v-html="compiledMarkdown"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -76,16 +84,19 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, onUpdated, nextTick } from 'vue'
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import { reactive, ref, onMounted, onUpdated, nextTick, computed } from 'vue'
+import { marked } from 'marked'
 import axios from 'axios'
 
 const props = defineProps(['post', 'isEditing', 'token'])
 const emit = defineEmits(['cancel', 'save'])
 
-const quillEditorRef = ref(null)
+const editorRef = ref(null)
 const form = reactive({ title: '', content: '', category: 'LOG', tags: '' })
+
+const compiledMarkdown = computed(() => {
+    return marked(form.content || '')
+})
 
 onMounted(() => {
     if (props.isEditing && props.post) {
@@ -93,11 +104,6 @@ onMounted(() => {
         form.content = props.post.content
         form.category = props.post.category || 'LOG'
         form.tags = props.post.tags || ''
-        
-        // Manually set content for Quill if needed, though v-model should handle it
-        if (quillEditorRef.value) {
-            quillEditorRef.value.setHTML(props.post.content)
-        }
     }
     refreshIcons()
 })
@@ -110,65 +116,59 @@ const refreshIcons = () => {
 
 onUpdated(refreshIcons)
 
-const imageHandler = () => {
-  const input = document.createElement('input')
-  input.setAttribute('type', 'file')
-  input.setAttribute('accept', 'image/*')
-  input.click()
-  input.onchange = async () => {
-    const file = input.files[0]
-    if (/^image\//.test(file.type)) {
-      const formData = new FormData()
-      formData.append('file', file)
-      try {
+const uploadFile = async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
         const res = await axios.post('/api/upload', formData, {
-           headers: { Authorization: `Bearer ${props.token}` }
+            headers: { Authorization: `Bearer ${props.token}` }
         })
-        const url = res.data.url
-        const quill = quillEditorRef.value.getQuill()
-        const range = quill.getSelection(true)
-        if (range) {
-            quill.insertEmbed(range.index, 'image', url)
-            quill.setSelection(range.index + 1)
-        } else {
-            const length = quill.getLength()
-            quill.insertEmbed(length, 'image', url)
-        }
-      } catch (e) {
+        return res.data.url
+    } catch (e) {
         console.error('Image upload failed', e)
         alert('Image upload failed')
-      }
-    } else {
-      console.warn('You could only upload images.')
+        return null
     }
-  }
 }
 
-const quillOptions = {
-  modules: {
-    toolbar: {
-      container: [
-        ['bold', 'italic', 'underline', 'strike'],
-        ['blockquote', 'code-block'],
-        [{ 'header': 1 }, { 'header': 2 }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        [{ 'script': 'sub'}, { 'script': 'super' }],
-        [{ 'indent': '-1'}, { 'indent': '+1' }],
-        [{ 'direction': 'rtl' }],
-        [{ 'size': ['small', false, 'large', 'huge'] }],
-        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'font': [] }],
-        [{ 'align': [] }],
-        ['clean'],
-        ['link', 'image', 'video']
-      ],
-      handlers: {
-        image: imageHandler
-      }
+const insertAtCursor = (text) => {
+    const textarea = editorRef.value
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const before = form.content.substring(0, start)
+    const after = form.content.substring(end)
+    form.content = before + text + after
+    nextTick(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + text.length
+        textarea.focus()
+    })
+}
+
+const handlePaste = async (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items
+    for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            e.preventDefault()
+            const file = item.getAsFile()
+            const url = await uploadFile(file)
+            if (url) {
+                insertAtCursor(`![Image](${url})`)
+            }
+        }
     }
-  },
-  theme: 'snow'
+}
+
+const handleDrop = async (e) => {
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+        const file = files[0]
+        if (file.type.startsWith('image/')) {
+            const url = await uploadFile(file)
+            if (url) {
+                insertAtCursor(`![Image](${url})`)
+            }
+        }
+    }
 }
 
 const save = () => {
