@@ -8,8 +8,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # 安装依赖
-# --no-cache-dir 减小镜像体积
-RUN pip install --no-cache-dir -r requirements.txt
+# --no-cache-dir 减小镜像体积，配置清华源提升在国内服务器的下载速度
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY . .
