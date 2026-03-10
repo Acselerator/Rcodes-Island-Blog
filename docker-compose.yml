@@ -3,7 +3,9 @@ version: '3.8'
 services:
   # 前端服务
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      network: host
     image: blog-frontend:latest
     ports:
       - "8080:80"  # 避免与宝塔Nginx的80端口冲突
@@ -17,7 +19,9 @@ services:
 
   # 后端服务
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      network: host
     image: blog-backend:latest
     restart: always
     # 【关键修改1】给予容器最高权限，绕过部分安全限制
